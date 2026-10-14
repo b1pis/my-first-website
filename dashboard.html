@@ -59,10 +59,10 @@
 
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px; }
     .item { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px 14px;
-            position:relative; transition:.15s; }
-    .item.folder { cursor:pointer; }
+            position:relative; transition:.15s; cursor:pointer; }
     .item:hover { border-color:var(--primary); transform:translateY(-2px); box-shadow:0 8px 22px rgba(0,0,0,.18); }
-    .ico { font-size:40px; line-height:1; margin-bottom:12px; }
+    .ico { font-size:40px; line-height:1; margin-bottom:12px; height:70px; display:flex; align-items:center; }
+    .ico img { width:100%; height:70px; object-fit:cover; border-radius:8px; }
     .name { font-weight:600; font-size:15px; word-break:break-word; margin-bottom:4px; }
     .meta { font-size:12px; color:var(--muted); }
     .tools { display:flex; gap:4px; margin-top:12px; border-top:1px solid var(--border); padding-top:10px; }
@@ -85,9 +85,31 @@
     .row { display:flex; justify-content:flex-end; gap:10px; }
     .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
              background:var(--card); border:1px solid var(--border); padding:12px 20px; border-radius:10px;
-             font-size:14px; transition:.25s; pointer-events:none; z-index:30; }
+             font-size:14px; transition:.25s; pointer-events:none; z-index:40; }
     .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
     .overlay { display:none; }
+
+    /* Preview */
+    .pv-box { background:var(--panel); border:1px solid var(--border); border-radius:16px; width:100%;
+              max-width:920px; height:86vh; display:flex; flex-direction:column; overflow:hidden; }
+    .pv-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 18px;
+               border-bottom:1px solid var(--border); }
+    .pv-head b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pv-head div { display:flex; gap:8px; flex-shrink:0; }
+    .pv-head .btn { padding:8px 14px; }
+    .pv-body { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+    .pv-body img { max-width:100%; max-height:100%; object-fit:contain; }
+    .pv-body iframe { width:100%; height:100%; border:none; background:#fff; }
+    .pv-body video { max-width:100%; max-height:100%; }
+    .pv-body pre { width:100%; height:100%; margin:0; padding:18px; overflow:auto; white-space:pre-wrap;
+                   word-break:break-word; align-self:flex-start; font-size:13px; }
+    .nopv { text-align:center; color:var(--muted); } .nopv .big { font-size:56px; margin-bottom:8px; }
+
+    /* Drag and drop */
+    .dropzone { position:fixed; inset:12px; border:3px dashed var(--primary); border-radius:20px;
+                background:rgba(79,140,255,.12); display:none; align-items:center; justify-content:center;
+                font-size:22px; font-weight:700; z-index:50; pointer-events:none; }
+    .dropzone.show { display:flex; }
 
     @media (max-width:860px) {
       .app { grid-template-columns:1fr; }
@@ -97,6 +119,7 @@
       .burger { display:block; }
       .topbar, .content { padding-left:16px; padding-right:16px; }
       .user span { display:none; }
+      .pv-box { height:92vh; }
     }
   </style>
 </head>
@@ -139,14 +162,30 @@
     </main>
   </div>
 
+  <input type="file" id="fileInput" multiple hidden>
+  <div class="dropzone" id="dz">⬆ Drop files to upload</div>
+
   <div class="modal" id="modal">
     <div class="dialog">
       <h3 id="mTitle"></h3><p id="mText"></p>
-      <input id="mInput" type="text" maxlength="60">
+      <input id="mInput" type="text" maxlength="120">
       <div class="row">
         <button class="btn" id="mCancel">Cancel</button>
         <button class="btn primary" id="mOk">OK</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="pv">
+    <div class="pv-box">
+      <div class="pv-head">
+        <b id="pvName"></b>
+        <div>
+          <button class="btn" id="pvDl">⬇ Download</button>
+          <button class="btn" id="pvClose">✕ Close</button>
+        </div>
+      </div>
+      <div class="pv-body" id="pvBody"></div>
     </div>
   </div>
   <div class="toast" id="toast"></div>
@@ -163,6 +202,7 @@
     const save = () => localStorage.setItem(KEY, JSON.stringify(items));
     const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const esc = s => s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+    const usedBytes = () => items.reduce((s, i) => s + (i.size || 0), 0);
 
     function fmt(b) {
       if (b < 1024) return b + " B";
@@ -178,6 +218,40 @@
       if (t.startsWith("audio/")) return "🎵";
       if (t.startsWith("text/")) return "📝";
       return "📄";
+    }
+
+    /* ---------- IndexedDB (stores the real file data) ---------- */
+    let dbp;
+    function db() {
+      if (!dbp) dbp = new Promise((res, rej) => {
+        const r = indexedDB.open("vault_files", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("blobs");
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+      return dbp;
+    }
+    async function putBlob(id, blob) {
+      const d = await db();
+      return new Promise((res, rej) => {
+        const t = d.transaction("blobs", "readwrite");
+        t.objectStore("blobs").put(blob, id);
+        t.oncomplete = res; t.onerror = () => rej(t.error);
+      });
+    }
+    async function getBlob(id) {
+      const d = await db();
+      return new Promise((res, rej) => {
+        const r = d.transaction("blobs").objectStore("blobs").get(id);
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      });
+    }
+    async function delBlob(id) {
+      const d = await db();
+      return new Promise(res => {
+        const t = d.transaction("blobs", "readwrite");
+        t.objectStore("blobs").delete(id); t.oncomplete = res; t.onerror = res;
+      });
     }
 
     /* ---------- Header / theme ---------- */
@@ -215,18 +289,27 @@
     $("modal").onclick = e => { if (e.target === $("modal")) closeModal(); };
     $("mOk").onclick = () => { if (onOk && onOk($("mInput").value.trim()) === false) return; closeModal(); };
     $("mInput").addEventListener("keydown", e => { if (e.key === "Enter") $("mOk").click(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); closePreview(); } });
 
     function toast(msg) {
       $("toast").textContent = msg; $("toast").classList.add("show");
-      clearTimeout(toast.t); toast.t = setTimeout(() => $("toast").classList.remove("show"), 2200);
+      clearTimeout(toast.t); toast.t = setTimeout(() => $("toast").classList.remove("show"), 2600);
     }
 
-    /* ---------- Actions ---------- */
+    /* ---------- Folder actions ---------- */
     function nameTaken(name, parent, exceptId) {
       return items.some(i => i.parent === parent && i.id !== exceptId && i.name.toLowerCase() === name.toLowerCase());
     }
+    function uniqueName(name, parent) {
+      if (!nameTaken(name, parent)) return name;
+      const dot = name.lastIndexOf(".");
+      const base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : "";
+      let n = 1;
+      while (nameTaken(base + " (" + n + ")" + ext, parent)) n++;
+      return base + " (" + n + ")" + ext;
+    }
     $("newFolder").onclick = () => {
-      if (state.view === "fav") { state.view = "vault"; state.folder = null; }
+      if (state.view === "fav") { state.view = "vault"; state.folder = null; render(); }
       openModal({ title: "New folder", text: "Give your folder a name.", input: true, okText: "Create", ok: name => {
         if (!name) { toast("Please enter a name."); return false; }
         if (nameTaken(name, state.folder)) { toast("That name already exists here."); return false; }
@@ -234,7 +317,6 @@
         save(); render(); toast("Folder created.");
       }});
     };
-    $("uploadBtn").onclick = () => toast("Upload will work in the next step!");
 
     function descendants(id) {
       let out = [];
@@ -254,9 +336,84 @@
         text: '"' + it.name + '" ' + (extra ? "and its " + extra + " item(s) will be" : "will be") + " permanently deleted.",
         okText: "Delete", danger: true, ok: () => {
           const gone = new Set([it.id, ...descendants(it.id)]);
+          items.filter(i => gone.has(i.id) && i.type === "file").forEach(f => delBlob(f.id));
           items = items.filter(i => !gone.has(i.id)); save(); render(); toast("Deleted.");
         }});
     }
+
+    /* ---------- Upload ---------- */
+    $("uploadBtn").onclick = () => $("fileInput").click();
+    $("fileInput").onchange = e => { uploadFiles(Array.from(e.target.files)); e.target.value = ""; };
+
+    async function uploadFiles(files) {
+      if (!files.length) return;
+      if (state.view === "fav") { state.view = "vault"; state.folder = null; }
+      toast("Uploading...");
+      let ok = 0, skipped = 0;
+      for (const f of files) {
+        if (usedBytes() + f.size > QUOTA) { skipped++; continue; }
+        try {
+          const id = uid();
+          await putBlob(id, f);
+          items.push({ id, type: "file", name: uniqueName(f.name, state.folder), parent: state.folder,
+                       favorite: false, created: Date.now(), size: f.size, mime: f.type || "" });
+          ok++;
+        } catch (err) { skipped++; }
+      }
+      save(); render();
+      let msg = ok + " file" + (ok === 1 ? "" : "s") + " uploaded.";
+      if (skipped) msg += " " + skipped + " skipped (storage full or error).";
+      toast(msg);
+    }
+
+    // Drag and drop
+    let dragDepth = 0;
+    const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+    document.addEventListener("dragenter", e => { if (hasFiles(e)) { dragDepth++; $("dz").classList.add("show"); } });
+    document.addEventListener("dragleave", e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; $("dz").classList.remove("show"); } });
+    document.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
+    document.addEventListener("drop", e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); dragDepth = 0; $("dz").classList.remove("show");
+      uploadFiles(Array.from(e.dataTransfer.files));
+    });
+
+    /* ---------- Preview + download ---------- */
+    let pvUrl = null, pvItem = null;
+    async function openPreview(it) {
+      const blob = await getBlob(it.id);
+      if (!blob) { toast("File data not found."); return; }
+      pvItem = it; $("pvName").textContent = it.name;
+      const body = $("pvBody"); body.innerHTML = "";
+      const t = it.mime || "";
+      if (t.startsWith("image/") || t === "application/pdf" || t.startsWith("video/") || t.startsWith("audio/")) {
+        pvUrl = URL.createObjectURL(blob);
+        const el = document.createElement(t.startsWith("image/") ? "img" : t === "application/pdf" ? "iframe"
+                    : t.startsWith("video/") ? "video" : "audio");
+        if (el.tagName === "VIDEO" || el.tagName === "AUDIO") el.controls = true;
+        el.src = pvUrl; body.appendChild(el);
+      } else if (t.startsWith("text/") || /\.(txt|md|csv|json|js|html|css|log)$/i.test(it.name)) {
+        const pre = document.createElement("pre");
+        pre.textContent = await blob.slice(0, 200000).text(); body.appendChild(pre);
+      } else {
+        body.innerHTML = '<div class="nopv"><div class="big">📄</div>No preview available for this file type.<br>You can still download it.</div>';
+      }
+      $("pv").classList.add("show");
+    }
+    function closePreview() {
+      $("pv").classList.remove("show"); $("pvBody").innerHTML = "";
+      if (pvUrl) { URL.revokeObjectURL(pvUrl); pvUrl = null; }
+    }
+    async function download(it) {
+      const blob = await getBlob(it.id);
+      if (!blob) { toast("File data not found."); return; }
+      const url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = it.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    $("pvClose").onclick = closePreview;
+    $("pv").onclick = e => { if (e.target === $("pv")) closePreview(); };
+    $("pvDl").onclick = () => pvItem && download(pvItem);
 
     /* ---------- Render ---------- */
     function crumbs() {
@@ -272,7 +429,20 @@
       state.folder = a.dataset.go || null; render();
     };
 
+    let thumbUrls = [];
+    async function loadThumbs() {
+      for (const el of document.querySelectorAll("[data-thumb]")) {
+        try {
+          const blob = await getBlob(el.dataset.thumb);
+          if (!blob || !el.isConnected) continue;
+          const url = URL.createObjectURL(blob); thumbUrls.push(url);
+          el.innerHTML = '<img src="' + url + '" alt="">';
+        } catch (e) {}
+      }
+    }
+
     function render() {
+      thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = [];
       document.querySelectorAll(".nav[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === state.view && !state.query));
       let list, title = "My Vault";
       if (state.query) {
@@ -288,26 +458,30 @@
       $("title").textContent = title; crumbs();
 
       $("grid").innerHTML = list.map(i => {
-        const count = i.type === "folder" ? items.filter(c => c.parent === i.id).length : 0;
-        const meta = i.type === "folder" ? count + (count === 1 ? " item" : " items") : fmt(i.size || 0);
+        const isFolder = i.type === "folder";
+        const count = isFolder ? items.filter(c => c.parent === i.id).length : 0;
+        const meta = isFolder ? count + (count === 1 ? " item" : " items") : fmt(i.size || 0);
+        const isImg = !isFolder && (i.mime || "").startsWith("image/");
         return '<div class="item ' + i.type + '" data-id="' + i.id + '">' +
-          '<div class="ico">' + (i.type === "folder" ? "📁" : fileIcon(i)) + "</div>" +
+          '<div class="ico"' + (isImg ? ' data-thumb="' + i.id + '"' : "") + ">" + (isFolder ? "📁" : fileIcon(i)) + "</div>" +
           '<div class="name">' + esc(i.name) + '</div><div class="meta">' + meta + "</div>" +
           '<div class="tools">' +
             '<button data-act="fav" class="' + (i.favorite ? "on" : "") + '" title="Favorite">' + (i.favorite ? "★" : "☆") + "</button>" +
             '<button data-act="rename" title="Rename">✏️</button>' +
+            (isFolder ? "" : '<button data-act="download" title="Download">⬇️</button>') +
             '<button data-act="delete" title="Delete">🗑️</button></div></div>';
       }).join("");
+      loadThumbs();
 
       const empty = list.length === 0; $("empty").style.display = empty ? "block" : "none";
       if (empty) {
         $("emptyIcon").textContent = state.query ? "🔍" : state.view === "fav" ? "⭐" : "📂";
-        $("emptyText").textContent = state.query ? "No matches found." : state.view === "fav" ? "No favorites yet. Tap the star on any item." : "This folder is empty. Create a folder to get started.";
+        $("emptyText").textContent = state.query ? "No matches found." : state.view === "fav" ? "No favorites yet. Tap the star on any item." : "This folder is empty. Upload a file or create a folder.";
       }
       $("newFolder").style.display = state.query ? "none" : "";
       $("uploadBtn").style.display = state.query ? "none" : "";
 
-      const used = items.reduce((s, i) => s + (i.size || 0), 0);
+      const used = usedBytes();
       $("bar").style.width = Math.min(100, used / QUOTA * 100) + "%";
       $("storageText").textContent = fmt(used) + " of 100 MB used";
     }
@@ -319,10 +493,12 @@
       if (btn) {
         if (btn.dataset.act === "fav") { it.favorite = !it.favorite; save(); render(); }
         if (btn.dataset.act === "rename") rename(it);
+        if (btn.dataset.act === "download") download(it);
         if (btn.dataset.act === "delete") remove(it);
         return;
       }
       if (it.type === "folder") { state.view = "vault"; state.folder = it.id; state.query = ""; $("search").value = ""; render(); }
+      else openPreview(it);
     };
 
     $("search").addEventListener("input", e => { state.query = e.target.value.trim(); render(); });
