@@ -3,17 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digital File Vault</title>
+  <title>Digital File Vault - Login</title>
   <style>
-    body { font-family: Arial, sans-serif; display: flex; flex-direction: column;
-           align-items: center; justify-content: center; height: 100vh; margin: 0;
-           background: #0f172a; color: white; text-align: center; }
-    h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-    p { color: #94a3b8; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; min-height: 100vh;
+           display: flex; align-items: center; justify-content: center;
+           background: #0f172a; color: #e2e8f0; padding: 16px; }
+    .card { background: #1e293b; padding: 32px; border-radius: 12px;
+            width: 100%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+    h1 { text-align: center; margin: 0 0 4px; }
+    .sub { text-align: center; color: #94a3b8; margin: 0 0 24px; font-size: 14px; }
+    input { width: 100%; padding: 12px; margin-bottom: 14px; border-radius: 8px;
+            border: 1px solid #334155; background: #0f172a; color: white; font-size: 15px; }
+    button { width: 100%; padding: 12px; border: none; border-radius: 8px;
+             background: #3b82f6; color: white; font-size: 16px; cursor: pointer; }
+    button:hover { background: #2563eb; }
+    .toggle { text-align: center; margin-top: 16px; font-size: 14px; color: #94a3b8; }
+    .toggle a { color: #60a5fa; cursor: pointer; }
+    .msg { text-align: center; font-size: 14px; margin-bottom: 12px; min-height: 18px; }
+    .error { color: #f87171; } .ok { color: #4ade80; }
   </style>
 </head>
 <body>
-  <h1>🔐 Digital File Vault</h1>
-  <p>Coming soon. Your files, safe and organized.</p>
+  <div class="card">
+    <h1>🔐 File Vault</h1>
+    <p class="sub" id="subtitle">Log in to your vault</p>
+    <div class="msg" id="msg"></div>
+
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <input type="password" id="confirm" placeholder="Confirm password" style="display:none">
+    <button id="submitBtn">Log In</button>
+
+    <div class="toggle" id="toggleText">
+      No account yet? <a id="toggleLink">Register</a>
+    </div>
+  </div>
+
+  <script>
+    let isRegister = false;
+    const $ = id => document.getElementById(id);
+
+    function showMsg(text, type) {
+      $("msg").textContent = text;
+      $("msg").className = "msg " + type;
+    }
+
+    function setMode(register) {
+      isRegister = register;
+      $("confirm").style.display = register ? "block" : "none";
+      $("submitBtn").textContent = register ? "Register" : "Log In";
+      $("subtitle").textContent = register ? "Create your vault account" : "Log in to your vault";
+      $("toggleText").innerHTML = register
+        ? 'Already have an account? <a id="toggleLink">Log in</a>'
+        : 'No account yet? <a id="toggleLink">Register</a>';
+      $("toggleLink").onclick = () => setMode(!isRegister);
+      showMsg("", "");
+    }
+
+    function getUsers() {
+      return JSON.parse(localStorage.getItem("vault_users") || "{}");
+    }
+
+    $("submitBtn").onclick = () => {
+      const username = $("username").value.trim();
+      const password = $("password").value;
+      if (!username || !password) return showMsg("Please fill in all fields.", "error");
+
+      const users = getUsers();
+
+      if (isRegister) {
+        if (password.length < 6) return showMsg("Password must be at least 6 characters.", "error");
+        if (password !== $("confirm").value) return showMsg("Passwords do not match.", "error");
+        if (users[username]) return showMsg("Username already taken.", "error");
+        users[username] = { password: btoa(password) };
+        localStorage.setItem("vault_users", JSON.stringify(users));
+        showMsg("Account created! You can log in now.", "ok");
+        setMode(false);
+      } else {
+        if (!users[username] || users[username].password !== btoa(password))
+          return showMsg("Wrong username or password.", "error");
+        sessionStorage.setItem("vault_current_user", username);
+        showMsg("Login successful! Dashboard coming in the next step.", "ok");
+      }
+    };
+
+    $("toggleLink").onclick = () => setMode(true);
+  </script>
 </body>
 </html>
