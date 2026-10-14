@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital File Vault - Dashboard</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           background: #0b1120; color: #e5eaf5; font-family: "Segoe UI", system-ui, Arial, sans-serif;
+           text-align: center; padding: 20px; }
+    h1 { margin: 0 0 8px; font-size: 34px; }
+    p { color: #8b97b3; margin: 0 0 24px; }
+    button { padding: 12px 28px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+             color: white; cursor: pointer; background: linear-gradient(135deg, #4f8cff, #7c5cff); }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>👋 Welcome, <span id="who"></span>!</h1>
+    <p>Your dashboard is coming in the next step.</p>
+    <button id="logout">Log Out</button>
+  </div>
+  <script>
+    const user = sessionStorage.getItem("vault_current_user");
+    if (!user) location.href = "index.html";
+    document.getElementById("who").textContent = user;
+    document.getElementById("logout").onclick = () => {
+      sessionStorage.removeItem("vault_current_user");
+      location.href = "index.html";
+    };
+  </script>
+</body>
+</html>
