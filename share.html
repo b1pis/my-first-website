@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared file - Digital File Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#080d1a; --solid:#111a2e; --card:rgba(24,35,62,.78); --border:rgba(148,163,184,.18); --text:#e8edf8;
+            --muted:#94a0bd; --primary:#4f8cff; --grad:linear-gradient(135deg,#4f8cff 0%,#7c5cff 55%,#d946ef 100%); }
+    [data-theme="light"] { --bg:#eef2fb; --solid:#ffffff; --card:rgba(255,255,255,.85); --border:rgba(100,116,139,.2);
+            --text:#1b2540; --muted:#66728f; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); display:flex; align-items:center;
+           justify-content:center; padding:20px; font-family:"Inter","Segoe UI",system-ui,Arial,sans-serif; }
+    body::before { content:""; position:fixed; inset:0; z-index:-1; background:
+        radial-gradient(900px 520px at 8% -8%, rgba(79,140,255,.30), transparent 60%),
+        radial-gradient(800px 520px at 100% 0%, rgba(168,85,247,.26), transparent 60%),
+        radial-gradient(900px 620px at 55% 115%, rgba(236,72,153,.20), transparent 60%); }
+    .card { width:100%; max-width:760px; background:var(--card); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+            border:1px solid var(--border); border-radius:22px; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.35); }
+    .top { display:flex; align-items:center; gap:10px; padding:16px 22px; border-bottom:1px solid var(--border); font-weight:800; }
+    .top span { background:var(--grad); padding:7px 9px; border-radius:11px; }
+    .info { padding:22px 22px 10px; }
+    .tag { display:inline-block; font-size:12px; font-weight:600; color:var(--primary); background:rgba(79,140,255,.14);
+           padding:5px 11px; border-radius:20px; margin-bottom:10px; }
+    h1 { margin:0 0 6px; font-size:24px; word-break:break-word; letter-spacing:-.4px; }
+    .meta { color:var(--muted); font-size:14px; }
+    .preview { margin:18px 22px; border-radius:16px; background:var(--bg); border:1px solid var(--border);
+               min-height:200px; max-height:60vh; display:flex; align-items:center; justify-content:center; overflow:auto; }
+    .preview img { max-width:100%; max-height:60vh; object-fit:contain; }
+    .preview iframe { width:100%; height:60vh; border:none; background:#fff; }
+    .preview video { max-width:100%; max-height:60vh; }
+    .preview pre { width:100%; margin:0; padding:16px; white-space:pre-wrap; word-break:break-word; font-size:13px; align-self:flex-start; }
+    .nopv { text-align:center; color:var(--muted); padding:30px; } .nopv .big { font-size:54px; margin-bottom:6px; }
+    .actions { display:flex; gap:10px; padding:4px 22px 24px; flex-wrap:wrap; }
+    .btn { padding:12px 22px; border-radius:12px; font-size:15px; font-weight:600; border:1px solid var(--border);
+           background:var(--solid); color:var(--text); cursor:pointer; text-decoration:none; font-family:inherit; }
+    .btn.primary { border:none; color:#fff; background:var(--grad); box-shadow:0 8px 22px rgba(124,92,255,.4); }
+    .err { text-align:center; padding:50px 28px; }
+    .err .big { font-size:60px; margin-bottom:8px; }
+    .err h1 { font-size:22px; } .err p { color:var(--muted); max-width:420px; margin:8px auto 22px; line-height:1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="top"><span>🔐</span> Digital File Vault</div>
+    <div id="view"><div class="err"><div class="big">⏳</div><h1>Loading...</h1></div></div>
+  </div>
+
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem("vault_theme") || "dark";
+    const view = document.getElementById("view");
+    const esc = s => s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+    function fmt(b) {
+      if (b < 1024) return b + " B";
+      if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+      if (b < 1073741824) return (b / 1048576).toFixed(1) + " MB";
+      return (b / 1073741824).toFixed(2) + " GB";
+    }
+    function showError() {
+      view.innerHTML = '<div class="err"><div class="big">🔒</div><h1>This link is not available</h1>' +
+        '<p>The file may no longer be shared, it was deleted, or it was shared from a different browser. ' +
+        'In this demo, shared links work in the browser where the file was uploaded.</p>' +
+        '<a class="btn primary" href="index.html">Go to File Vault</a></div>';
+    }
+    function getBlob(id) {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open("vault_files", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("blobs");
+        r.onerror = () => rej(r.error);
+        r.onsuccess = () => {
+          const d = r.result;
+          if (!d.objectStoreNames.contains("blobs")) return res(null);
+          const g = d.transaction("blobs").objectStore("blobs").get(id);
+          g.onsuccess = () => res(g.result); g.onerror = () => rej(g.error);
+        };
+      });
+    }
+
+    (async function () {
+      const token = new URLSearchParams(location.search).get("id");
+      const shares = JSON.parse(localStorage.getItem("vault_shares") || "{}");
+      const info = token && shares[token];
+      if (!info) return showError();
+      let blob;
+      try { blob = await getBlob(info.id); } catch (e) { return showError(); }
+      if (!blob) return showError();
+
+      const url = URL.createObjectURL(blob), t = info.mime || "";
+      view.innerHTML =
+        '<div class="info"><span class="tag">🔗 Shared file</span><h1>' + esc(info.name) + '</h1>' +
+        '<div class="meta">' + fmt(info.size || blob.size) + ' · shared by ' + esc(info.owner) + '</div></div>' +
+        '<div class="preview" id="pv"></div>' +
+        '<div class="actions"><a class="btn primary" id="dl">⬇ Download</a>' +
+        '<a class="btn" href="index.html">Open File Vault</a></div>';
+
+      document.title = info.name + " - Digital File Vault";
+      const dl = document.getElementById("dl"); dl.href = url; dl.download = info.name;
+      const pv = document.getElementById("pv");
+      if (t.startsWith("image/") || t === "application/pdf" || t.startsWith("video/") || t.startsWith("audio/")) {
+        const el = document.createElement(t.startsWith("image/") ? "img" : t === "application/pdf" ? "iframe"
+                    : t.startsWith("video/") ? "video" : "audio");
+        if (el.tagName === "VIDEO" || el.tagName === "AUDIO") el.controls = true;
+        el.src = url; pv.appendChild(el);
+      } else if (t.startsWith("text/") || /\.(txt|md|csv|json|js|html|css|log)$/i.test(info.name)) {
+        const pre = document.createElement("pre");
+        pre.textContent = await blob.slice(0, 200000).text(); pv.appendChild(pre);
+      } else {
+        pv.innerHTML = '<div class="nopv"><div class="big">📄</div>No preview for this file type.<br>You can still download it.</div>';
+      }
+    })();
+  </script>
+</body>
+</html>
