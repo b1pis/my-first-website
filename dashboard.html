@@ -5,29 +5,328 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Digital File Vault - Dashboard</title>
   <style>
-    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-           background: #0b1120; color: #e5eaf5; font-family: "Segoe UI", system-ui, Arial, sans-serif;
-           text-align: center; padding: 20px; }
-    h1 { margin: 0 0 8px; font-size: 34px; }
-    p { color: #8b97b3; margin: 0 0 24px; }
-    button { padding: 12px 28px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
-             color: white; cursor: pointer; background: linear-gradient(135deg, #4f8cff, #7c5cff); }
+    :root { --bg:#0b1120; --panel:#111a2e; --card:#162038; --border:#263250; --text:#e5eaf5;
+            --muted:#8b97b3; --primary:#4f8cff; --primary2:#7c5cff; --danger:#ff6b7a; --star:#ffc857; }
+    [data-theme="light"] { --bg:#f3f6fc; --panel:#ffffff; --card:#ffffff; --border:#dfe5f1;
+            --text:#1b2540; --muted:#6b7794; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); transition:background .2s;
+           font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif; }
+    button { font-family:inherit; cursor:pointer; }
+    .app { display:grid; grid-template-columns:250px 1fr; min-height:100vh; }
+
+    /* Sidebar */
+    .sidebar { background:var(--panel); border-right:1px solid var(--border); padding:22px 16px;
+               display:flex; flex-direction:column; gap:6px; position:sticky; top:0; height:100vh; }
+    .logo { font-size:19px; font-weight:700; display:flex; align-items:center; gap:10px; padding:0 8px 18px; }
+    .logo span { background:linear-gradient(135deg,var(--primary),var(--primary2)); padding:7px 9px; border-radius:10px; }
+    .nav { display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:10px; border:none;
+           background:transparent; color:var(--muted); font-size:15px; font-weight:600; text-align:left; width:100%; }
+    .nav:hover { background:var(--card); color:var(--text); }
+    .nav.active { background:linear-gradient(135deg,rgba(79,140,255,.18),rgba(124,92,255,.18)); color:var(--text); }
+    .spacer { flex:1; }
+    .storage { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:8px; }
+    .storage b { font-size:13px; }
+    .bar { height:7px; background:var(--border); border-radius:5px; margin:10px 0 6px; overflow:hidden; }
+    .bar div { height:100%; width:0; background:linear-gradient(90deg,var(--primary),var(--primary2)); transition:.4s; }
+    .storage small { color:var(--muted); font-size:12px; }
+
+    /* Main */
+    .topbar { display:flex; align-items:center; gap:12px; padding:14px 28px; background:var(--panel);
+              border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
+    .burger { display:none; background:none; border:none; color:var(--text); font-size:22px; }
+    .search { flex:1; max-width:520px; position:relative; }
+    .search input { width:100%; padding:11px 14px 11px 40px; border-radius:10px; border:1px solid var(--border);
+                    background:var(--bg); color:var(--text); font-size:15px; outline:none; }
+    .search input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,140,255,.18); }
+    .search i { position:absolute; left:13px; top:10px; font-style:normal; opacity:.6; }
+    .icon-btn { background:var(--card); border:1px solid var(--border); color:var(--text); width:40px; height:40px;
+                border-radius:10px; font-size:17px; }
+    .user { display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px; }
+    .avatar { width:36px; height:36px; border-radius:50%; display:grid; place-items:center; color:#fff;
+              background:linear-gradient(135deg,var(--primary),var(--primary2)); text-transform:uppercase; }
+    .content { padding:26px 28px; }
+    .crumbs { font-size:14px; color:var(--muted); margin-bottom:8px; display:flex; flex-wrap:wrap; gap:6px; }
+    .crumbs a { cursor:pointer; color:var(--primary); } .crumbs a:hover { text-decoration:underline; }
+    .head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:22px; }
+    h2 { margin:0; font-size:26px; }
+    .actions { display:flex; gap:10px; }
+    .btn { padding:11px 18px; border-radius:10px; font-size:14px; font-weight:600; border:1px solid var(--border);
+           background:var(--card); color:var(--text); }
+    .btn:hover { border-color:var(--primary); }
+    .btn.primary { border:none; color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary2)); }
+    .btn.danger { background:var(--danger); border:none; color:#fff; }
+
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px; }
+    .item { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px 14px;
+            position:relative; transition:.15s; }
+    .item.folder { cursor:pointer; }
+    .item:hover { border-color:var(--primary); transform:translateY(-2px); box-shadow:0 8px 22px rgba(0,0,0,.18); }
+    .ico { font-size:40px; line-height:1; margin-bottom:12px; }
+    .name { font-weight:600; font-size:15px; word-break:break-word; margin-bottom:4px; }
+    .meta { font-size:12px; color:var(--muted); }
+    .tools { display:flex; gap:4px; margin-top:12px; border-top:1px solid var(--border); padding-top:10px; }
+    .tools button { flex:1; background:none; border:none; color:var(--muted); font-size:16px; padding:5px; border-radius:7px; }
+    .tools button:hover { background:var(--bg); color:var(--text); }
+    .tools button.on { color:var(--star); }
+    .empty { text-align:center; padding:70px 20px; color:var(--muted); display:none; }
+    .empty .big { font-size:56px; margin-bottom:10px; }
+
+    /* Modal + toast */
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center;
+             justify-content:center; padding:16px; z-index:20; }
+    .modal.show { display:flex; }
+    .dialog { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:24px;
+              width:100%; max-width:400px; }
+    .dialog h3 { margin:0 0 8px; } .dialog p { margin:0 0 16px; color:var(--muted); font-size:14px; }
+    .dialog input { width:100%; padding:12px; border-radius:10px; border:1px solid var(--border);
+                    background:var(--bg); color:var(--text); font-size:15px; outline:none; margin-bottom:18px; }
+    .dialog input:focus { border-color:var(--primary); }
+    .row { display:flex; justify-content:flex-end; gap:10px; }
+    .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+             background:var(--card); border:1px solid var(--border); padding:12px 20px; border-radius:10px;
+             font-size:14px; transition:.25s; pointer-events:none; z-index:30; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .overlay { display:none; }
+
+    @media (max-width:860px) {
+      .app { grid-template-columns:1fr; }
+      .sidebar { position:fixed; left:0; top:0; width:260px; z-index:15; transform:translateX(-100%); transition:.25s; }
+      .sidebar.open { transform:translateX(0); }
+      .overlay.show { display:block; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:12; }
+      .burger { display:block; }
+      .topbar, .content { padding-left:16px; padding-right:16px; }
+      .user span { display:none; }
+    }
   </style>
 </head>
 <body>
-  <div>
-    <h1>👋 Welcome, <span id="who"></span>!</h1>
-    <p>Your dashboard is coming in the next step.</p>
-    <button id="logout">Log Out</button>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="logo"><span>🔐</span> File Vault</div>
+      <button class="nav active" data-view="vault">📁 My Vault</button>
+      <button class="nav" data-view="fav">⭐ Favorites</button>
+      <div class="spacer"></div>
+      <div class="storage">
+        <b>Storage</b>
+        <div class="bar"><div id="bar"></div></div>
+        <small id="storageText">0 B of 100 MB used</small>
+      </div>
+      <button class="nav" id="logout">🚪 Log Out</button>
+    </aside>
+    <div class="overlay" id="overlay"></div>
+
+    <main>
+      <header class="topbar">
+        <button class="burger" id="burger">☰</button>
+        <div class="search"><i>🔍</i><input id="search" type="text" placeholder="Search files and folders..."></div>
+        <button class="icon-btn" id="theme" title="Toggle theme">🌙</button>
+        <div class="user"><div class="avatar" id="avatar"></div><span id="username"></span></div>
+      </header>
+
+      <section class="content">
+        <div class="crumbs" id="crumbs"></div>
+        <div class="head">
+          <h2 id="title">My Vault</h2>
+          <div class="actions">
+            <button class="btn" id="uploadBtn">⬆ Upload</button>
+            <button class="btn primary" id="newFolder">＋ New Folder</button>
+          </div>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="empty" id="empty"><div class="big" id="emptyIcon">📂</div><div id="emptyText"></div></div>
+      </section>
+    </main>
   </div>
+
+  <div class="modal" id="modal">
+    <div class="dialog">
+      <h3 id="mTitle"></h3><p id="mText"></p>
+      <input id="mInput" type="text" maxlength="60">
+      <div class="row">
+        <button class="btn" id="mCancel">Cancel</button>
+        <button class="btn primary" id="mOk">OK</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
   <script>
+    const $ = id => document.getElementById(id);
     const user = sessionStorage.getItem("vault_current_user");
     if (!user) location.href = "index.html";
-    document.getElementById("who").textContent = user;
-    document.getElementById("logout").onclick = () => {
-      sessionStorage.removeItem("vault_current_user");
-      location.href = "index.html";
+
+    const KEY = "vault_data_" + user;
+    const QUOTA = 100 * 1024 * 1024; // 100 MB
+    let items = JSON.parse(localStorage.getItem(KEY) || "[]");
+    let state = { view: "vault", folder: null, query: "" };
+    const save = () => localStorage.setItem(KEY, JSON.stringify(items));
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const esc = s => s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+    function fmt(b) {
+      if (b < 1024) return b + " B";
+      if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+      if (b < 1073741824) return (b / 1048576).toFixed(1) + " MB";
+      return (b / 1073741824).toFixed(2) + " GB";
+    }
+    function fileIcon(f) {
+      const t = f.mime || "";
+      if (t.startsWith("image/")) return "🖼️";
+      if (t === "application/pdf") return "📕";
+      if (t.startsWith("video/")) return "🎞️";
+      if (t.startsWith("audio/")) return "🎵";
+      if (t.startsWith("text/")) return "📝";
+      return "📄";
+    }
+
+    /* ---------- Header / theme ---------- */
+    $("username").textContent = user;
+    $("avatar").textContent = user.charAt(0);
+    function applyTheme(t) {
+      document.documentElement.dataset.theme = t;
+      $("theme").textContent = t === "dark" ? "🌙" : "☀️";
+      localStorage.setItem("vault_theme", t);
+    }
+    applyTheme(localStorage.getItem("vault_theme") || "dark");
+    $("theme").onclick = () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+
+    /* ---------- Sidebar ---------- */
+    const closeMenu = () => { $("sidebar").classList.remove("open"); $("overlay").classList.remove("show"); };
+    $("burger").onclick = () => { $("sidebar").classList.add("open"); $("overlay").classList.add("show"); };
+    $("overlay").onclick = closeMenu;
+    document.querySelectorAll(".nav[data-view]").forEach(b => b.onclick = () => {
+      state.view = b.dataset.view; state.folder = null; state.query = ""; $("search").value = "";
+      closeMenu(); render();
+    });
+    $("logout").onclick = () => { sessionStorage.removeItem("vault_current_user"); location.href = "index.html"; };
+
+    /* ---------- Modal ---------- */
+    let onOk = null;
+    function openModal({ title, text = "", input = false, value = "", okText = "OK", danger = false, ok }) {
+      $("mTitle").textContent = title; $("mText").textContent = text;
+      $("mInput").style.display = input ? "block" : "none"; $("mInput").value = value;
+      $("mOk").textContent = okText; $("mOk").className = "btn " + (danger ? "danger" : "primary");
+      onOk = ok; $("modal").classList.add("show");
+      if (input) setTimeout(() => { $("mInput").focus(); $("mInput").select(); }, 50);
+    }
+    const closeModal = () => $("modal").classList.remove("show");
+    $("mCancel").onclick = closeModal;
+    $("modal").onclick = e => { if (e.target === $("modal")) closeModal(); };
+    $("mOk").onclick = () => { if (onOk && onOk($("mInput").value.trim()) === false) return; closeModal(); };
+    $("mInput").addEventListener("keydown", e => { if (e.key === "Enter") $("mOk").click(); });
+
+    function toast(msg) {
+      $("toast").textContent = msg; $("toast").classList.add("show");
+      clearTimeout(toast.t); toast.t = setTimeout(() => $("toast").classList.remove("show"), 2200);
+    }
+
+    /* ---------- Actions ---------- */
+    function nameTaken(name, parent, exceptId) {
+      return items.some(i => i.parent === parent && i.id !== exceptId && i.name.toLowerCase() === name.toLowerCase());
+    }
+    $("newFolder").onclick = () => {
+      if (state.view === "fav") { state.view = "vault"; state.folder = null; }
+      openModal({ title: "New folder", text: "Give your folder a name.", input: true, okText: "Create", ok: name => {
+        if (!name) { toast("Please enter a name."); return false; }
+        if (nameTaken(name, state.folder)) { toast("That name already exists here."); return false; }
+        items.push({ id: uid(), type: "folder", name, parent: state.folder, favorite: false, created: Date.now() });
+        save(); render(); toast("Folder created.");
+      }});
     };
+    $("uploadBtn").onclick = () => toast("Upload will work in the next step!");
+
+    function descendants(id) {
+      let out = [];
+      items.filter(i => i.parent === id).forEach(c => { out.push(c.id); out = out.concat(descendants(c.id)); });
+      return out;
+    }
+    function rename(it) {
+      openModal({ title: "Rename", input: true, value: it.name, okText: "Save", ok: name => {
+        if (!name) { toast("Please enter a name."); return false; }
+        if (nameTaken(name, it.parent, it.id)) { toast("That name already exists here."); return false; }
+        it.name = name; save(); render(); toast("Renamed.");
+      }});
+    }
+    function remove(it) {
+      const extra = it.type === "folder" ? descendants(it.id).length : 0;
+      openModal({ title: "Delete " + it.type + "?",
+        text: '"' + it.name + '" ' + (extra ? "and its " + extra + " item(s) will be" : "will be") + " permanently deleted.",
+        okText: "Delete", danger: true, ok: () => {
+          const gone = new Set([it.id, ...descendants(it.id)]);
+          items = items.filter(i => !gone.has(i.id)); save(); render(); toast("Deleted.");
+        }});
+    }
+
+    /* ---------- Render ---------- */
+    function crumbs() {
+      if (state.view !== "vault" || state.query) { $("crumbs").innerHTML = ""; return; }
+      let path = [], cur = state.folder;
+      while (cur) { const f = items.find(i => i.id === cur); if (!f) break; path.unshift(f); cur = f.parent; }
+      let html = '<a data-go="">My Vault</a>';
+      path.forEach(p => html += ' <span>/</span> <a data-go="' + p.id + '">' + esc(p.name) + "</a>");
+      $("crumbs").innerHTML = html;
+    }
+    $("crumbs").onclick = e => {
+      const a = e.target.closest("a"); if (!a) return;
+      state.folder = a.dataset.go || null; render();
+    };
+
+    function render() {
+      document.querySelectorAll(".nav[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === state.view && !state.query));
+      let list, title = "My Vault";
+      if (state.query) {
+        const q = state.query.toLowerCase();
+        list = items.filter(i => i.name.toLowerCase().includes(q)); title = 'Results for "' + state.query + '"';
+      } else if (state.view === "fav") {
+        list = items.filter(i => i.favorite); title = "Favorites";
+      } else {
+        list = items.filter(i => i.parent === state.folder);
+        const cur = items.find(i => i.id === state.folder); if (cur) title = cur.name;
+      }
+      list.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "folder" ? -1 : 1));
+      $("title").textContent = title; crumbs();
+
+      $("grid").innerHTML = list.map(i => {
+        const count = i.type === "folder" ? items.filter(c => c.parent === i.id).length : 0;
+        const meta = i.type === "folder" ? count + (count === 1 ? " item" : " items") : fmt(i.size || 0);
+        return '<div class="item ' + i.type + '" data-id="' + i.id + '">' +
+          '<div class="ico">' + (i.type === "folder" ? "📁" : fileIcon(i)) + "</div>" +
+          '<div class="name">' + esc(i.name) + '</div><div class="meta">' + meta + "</div>" +
+          '<div class="tools">' +
+            '<button data-act="fav" class="' + (i.favorite ? "on" : "") + '" title="Favorite">' + (i.favorite ? "★" : "☆") + "</button>" +
+            '<button data-act="rename" title="Rename">✏️</button>' +
+            '<button data-act="delete" title="Delete">🗑️</button></div></div>';
+      }).join("");
+
+      const empty = list.length === 0; $("empty").style.display = empty ? "block" : "none";
+      if (empty) {
+        $("emptyIcon").textContent = state.query ? "🔍" : state.view === "fav" ? "⭐" : "📂";
+        $("emptyText").textContent = state.query ? "No matches found." : state.view === "fav" ? "No favorites yet. Tap the star on any item." : "This folder is empty. Create a folder to get started.";
+      }
+      $("newFolder").style.display = state.query ? "none" : "";
+      $("uploadBtn").style.display = state.query ? "none" : "";
+
+      const used = items.reduce((s, i) => s + (i.size || 0), 0);
+      $("bar").style.width = Math.min(100, used / QUOTA * 100) + "%";
+      $("storageText").textContent = fmt(used) + " of 100 MB used";
+    }
+
+    $("grid").onclick = e => {
+      const card = e.target.closest(".item"); if (!card) return;
+      const it = items.find(i => i.id === card.dataset.id); if (!it) return;
+      const btn = e.target.closest("button");
+      if (btn) {
+        if (btn.dataset.act === "fav") { it.favorite = !it.favorite; save(); render(); }
+        if (btn.dataset.act === "rename") rename(it);
+        if (btn.dataset.act === "delete") remove(it);
+        return;
+      }
+      if (it.type === "folder") { state.view = "vault"; state.folder = it.id; state.query = ""; $("search").value = ""; render(); }
+    };
+
+    $("search").addEventListener("input", e => { state.query = e.target.value.trim(); render(); });
+    render();
   </script>
 </body>
 </html>
