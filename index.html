@@ -3,92 +3,241 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digital File Vault - Login</title>
+  <title>Digital File Vault - Sign in</title>
   <style>
+    :root {
+      --bg: #0b1120; --panel: #111a2e; --card: #162038; --border: #263250;
+      --text: #e5eaf5; --muted: #8b97b3; --primary: #4f8cff; --primary-2: #7c5cff;
+      --danger: #ff6b7a; --success: #3ddc97;
+    }
     * { box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; margin: 0; min-height: 100vh;
-           display: flex; align-items: center; justify-content: center;
-           background: #0f172a; color: #e2e8f0; padding: 16px; }
-    .card { background: #1e293b; padding: 32px; border-radius: 12px;
-            width: 100%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
-    h1 { text-align: center; margin: 0 0 4px; }
-    .sub { text-align: center; color: #94a3b8; margin: 0 0 24px; font-size: 14px; }
-    input { width: 100%; padding: 12px; margin-bottom: 14px; border-radius: 8px;
-            border: 1px solid #334155; background: #0f172a; color: white; font-size: 15px; }
-    button { width: 100%; padding: 12px; border: none; border-radius: 8px;
-             background: #3b82f6; color: white; font-size: 16px; cursor: pointer; }
-    button:hover { background: #2563eb; }
-    .toggle { text-align: center; margin-top: 16px; font-size: 14px; color: #94a3b8; }
-    .toggle a { color: #60a5fa; cursor: pointer; }
-    .msg { text-align: center; font-size: 14px; margin-bottom: 12px; min-height: 18px; }
-    .error { color: #f87171; } .ok { color: #4ade80; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+           font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; }
+    .wrap { display: grid; grid-template-columns: 1.1fr 1fr; min-height: 100vh; }
+
+    /* Left brand panel */
+    .brand { position: relative; overflow: hidden; padding: 56px;
+             display: flex; flex-direction: column; justify-content: space-between;
+             background: linear-gradient(145deg, #1b2a5e 0%, #3b2a8f 55%, #5b3cc4 100%); }
+    .brand::before, .brand::after { content: ""; position: absolute; border-radius: 50%;
+             background: rgba(255,255,255,.07); }
+    .brand::before { width: 380px; height: 380px; top: -120px; right: -120px; }
+    .brand::after { width: 260px; height: 260px; bottom: -90px; left: -80px; }
+    .logo { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; position: relative; z-index: 1; }
+    .logo span { background: rgba(255,255,255,.18); padding: 8px 10px; border-radius: 12px; }
+    .hero { position: relative; z-index: 1; }
+    .hero h1 { font-size: 42px; line-height: 1.15; margin: 0 0 14px; }
+    .hero p { color: #cfd6f5; font-size: 17px; max-width: 420px; margin: 0 0 28px; }
+    .features { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+    .features li { display: flex; align-items: center; gap: 12px; color: #e6eaff; }
+    .features i { font-style: normal; background: rgba(255,255,255,.15); width: 36px; height: 36px;
+                  border-radius: 10px; display: grid; place-items: center; }
+    .foot { position: relative; z-index: 1; color: #b9c2ee; font-size: 13px; }
+
+    /* Right form panel */
+    .side { display: flex; align-items: center; justify-content: center; padding: 32px; }
+    .box { width: 100%; max-width: 400px; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel);
+            border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 28px; }
+    .tab { padding: 10px; text-align: center; border: none; background: transparent; color: var(--muted);
+           font-size: 15px; font-weight: 600; border-radius: 9px; cursor: pointer; transition: .2s; }
+    .tab.active { background: var(--card); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+    h2 { margin: 0 0 6px; font-size: 28px; }
+    .sub { color: var(--muted); margin: 0 0 22px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+    .field { margin-bottom: 16px; position: relative; }
+    input { width: 100%; padding: 13px 14px; background: var(--panel); color: var(--text);
+            border: 1px solid var(--border); border-radius: 10px; font-size: 15px; outline: none; transition: .2s; }
+    input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,140,255,.2); }
+    .eye { position: absolute; right: 10px; top: 33px; background: none; border: none;
+           color: var(--muted); cursor: pointer; font-size: 18px; }
+    .meter { height: 5px; background: var(--border); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+    .meter div { height: 100%; width: 0; transition: .3s; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+    .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+           color: white; cursor: pointer; background: linear-gradient(135deg, var(--primary), var(--primary-2));
+           transition: .2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(79,140,255,.35); }
+    .btn:disabled { opacity: .7; cursor: wait; transform: none; box-shadow: none; }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
+               border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+    .loading .spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .msg { padding: 11px 14px; border-radius: 10px; font-size: 14px; margin-bottom: 16px; display: none; }
+    .msg.error { display: block; background: rgba(255,107,122,.12); color: var(--danger); border: 1px solid rgba(255,107,122,.3); }
+    .msg.ok { display: block; background: rgba(61,220,151,.12); color: var(--success); border: 1px solid rgba(61,220,151,.3); }
+    .note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 22px; }
+
+    @media (max-width: 860px) {
+      .wrap { grid-template-columns: 1fr; }
+      .brand { display: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>🔐 File Vault</h1>
-    <p class="sub" id="subtitle">Log in to your vault</p>
-    <div class="msg" id="msg"></div>
+  <div class="wrap">
+    <section class="brand">
+      <div class="logo"><span>🔐</span> Digital File Vault</div>
+      <div class="hero">
+        <h1>Your files,<br>safe and organized.</h1>
+        <p>A simple personal cloud storage to keep, sort, and find your files anywhere.</p>
+        <ul class="features">
+          <li><i>📁</i> Organize with folders</li>
+          <li><i>⭐</i> Favorite your important files</li>
+          <li><i>🔍</i> Find anything instantly</li>
+          <li><i>🌙</i> Light and dark mode</li>
+        </ul>
+      </div>
+      <div class="foot">© 2026 Digital File Vault</div>
+    </section>
 
-    <input type="text" id="username" placeholder="Username">
-    <input type="password" id="password" placeholder="Password">
-    <input type="password" id="confirm" placeholder="Confirm password" style="display:none">
-    <button id="submitBtn">Log In</button>
+    <section class="side">
+      <div class="box">
+        <div class="tabs">
+          <button class="tab active" id="tabLogin" type="button">Log In</button>
+          <button class="tab" id="tabRegister" type="button">Register</button>
+        </div>
 
-    <div class="toggle" id="toggleText">
-      No account yet? <a id="toggleLink">Register</a>
-    </div>
+        <h2 id="title">Welcome back</h2>
+        <p class="sub" id="subtitle">Log in to open your vault.</p>
+
+        <div class="msg" id="msg"></div>
+
+        <div class="field">
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Enter your username" autocomplete="username">
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password">
+          <button class="eye" id="eye" type="button" aria-label="Show password">👁</button>
+          <div id="strengthWrap" style="display:none">
+            <div class="meter"><div id="meterBar"></div></div>
+            <div class="hint" id="strengthText">Use at least 6 characters.</div>
+          </div>
+        </div>
+
+        <div class="field" id="confirmField" style="display:none">
+          <label for="confirm">Confirm password</label>
+          <input type="password" id="confirm" placeholder="Re-enter your password" autocomplete="new-password">
+        </div>
+
+        <button class="btn" id="submitBtn" type="button">
+          <span class="spinner"></span><span id="btnText">Log In</span>
+        </button>
+
+        <p class="note">Class project demo: accounts are saved in this browser only.</p>
+      </div>
+    </section>
   </div>
 
   <script>
-    let isRegister = false;
     const $ = id => document.getElementById(id);
+    let isRegister = false;
+
+    // Already logged in? Go straight to the dashboard.
+    if (sessionStorage.getItem("vault_current_user")) location.href = "dashboard.html";
+
+    function getUsers() { return JSON.parse(localStorage.getItem("vault_users") || "{}"); }
 
     function showMsg(text, type) {
-      $("msg").textContent = text;
-      $("msg").className = "msg " + type;
+      const m = $("msg");
+      m.textContent = text;
+      m.className = text ? "msg " + type : "msg";
     }
 
     function setMode(register) {
       isRegister = register;
-      $("confirm").style.display = register ? "block" : "none";
-      $("submitBtn").textContent = register ? "Register" : "Log In";
-      $("subtitle").textContent = register ? "Create your vault account" : "Log in to your vault";
-      $("toggleText").innerHTML = register
-        ? 'Already have an account? <a id="toggleLink">Log in</a>'
-        : 'No account yet? <a id="toggleLink">Register</a>';
-      $("toggleLink").onclick = () => setMode(!isRegister);
+      $("tabLogin").classList.toggle("active", !register);
+      $("tabRegister").classList.toggle("active", register);
+      $("title").textContent = register ? "Create your account" : "Welcome back";
+      $("subtitle").textContent = register ? "Sign up to start storing your files." : "Log in to open your vault.";
+      $("btnText").textContent = register ? "Create Account" : "Log In";
+      $("confirmField").style.display = register ? "block" : "none";
+      $("strengthWrap").style.display = register ? "block" : "none";
+      $("password").autocomplete = register ? "new-password" : "current-password";
       showMsg("", "");
     }
 
-    function getUsers() {
-      return JSON.parse(localStorage.getItem("vault_users") || "{}");
-    }
+    $("tabLogin").onclick = () => setMode(false);
+    $("tabRegister").onclick = () => setMode(true);
+
+    // Show / hide password
+    $("eye").onclick = () => {
+      const show = $("password").type === "password";
+      $("password").type = show ? "text" : "password";
+      $("confirm").type = show ? "text" : "password";
+      $("eye").textContent = show ? "🙈" : "👁";
+    };
+
+    // Password strength meter
+    $("password").addEventListener("input", () => {
+      if (!isRegister) return;
+      const p = $("password").value;
+      let score = 0;
+      if (p.length >= 6) score++;
+      if (p.length >= 10) score++;
+      if (/[0-9]/.test(p) && /[a-zA-Z]/.test(p)) score++;
+      if (/[^a-zA-Z0-9]/.test(p) || (/[A-Z]/.test(p) && /[a-z]/.test(p))) score++;
+      const levels = [
+        { w: "8%",   c: "#ff6b7a", t: "Too weak" },
+        { w: "30%",  c: "#ff6b7a", t: "Weak" },
+        { w: "55%",  c: "#ffb454", t: "Fair" },
+        { w: "80%",  c: "#4f8cff", t: "Good" },
+        { w: "100%", c: "#3ddc97", t: "Strong" }
+      ];
+      const l = p ? levels[score] : { w: "0", c: "#263250", t: "Use at least 6 characters." };
+      $("meterBar").style.width = l.w;
+      $("meterBar").style.background = l.c;
+      $("strengthText").textContent = l.t;
+    });
+
+    // Enter key submits
+    ["username", "password", "confirm"].forEach(id =>
+      $(id).addEventListener("keydown", e => { if (e.key === "Enter") $("submitBtn").click(); })
+    );
 
     $("submitBtn").onclick = () => {
-      const username = $("username").value.trim();
+      const username = $("username").value.trim().toLowerCase();
       const password = $("password").value;
+      showMsg("", "");
+
       if (!username || !password) return showMsg("Please fill in all fields.", "error");
+      if (username.length < 3) return showMsg("Username must be at least 3 characters.", "error");
 
       const users = getUsers();
 
       if (isRegister) {
         if (password.length < 6) return showMsg("Password must be at least 6 characters.", "error");
         if (password !== $("confirm").value) return showMsg("Passwords do not match.", "error");
-        if (users[username]) return showMsg("Username already taken.", "error");
-        users[username] = { password: btoa(password) };
-        localStorage.setItem("vault_users", JSON.stringify(users));
-        showMsg("Account created! You can log in now.", "ok");
-        setMode(false);
+        if (users[username]) return showMsg("That username is already taken.", "error");
       } else {
         if (!users[username] || users[username].password !== btoa(password))
           return showMsg("Wrong username or password.", "error");
-        sessionStorage.setItem("vault_current_user", username);
-        showMsg("Login successful! Dashboard coming in the next step.", "ok");
       }
-    };
 
-    $("toggleLink").onclick = () => setMode(true);
+      // Show loading, then continue
+      $("submitBtn").disabled = true;
+      $("submitBtn").classList.add("loading");
+
+      setTimeout(() => {
+        if (isRegister) {
+          users[username] = { password: btoa(password), created: Date.now() };
+          localStorage.setItem("vault_users", JSON.stringify(users));
+          $("submitBtn").disabled = false;
+          $("submitBtn").classList.remove("loading");
+          $("password").value = ""; $("confirm").value = "";
+          setMode(false);
+          $("username").value = username;
+          showMsg("Account created! Please log in.", "ok");
+        } else {
+          sessionStorage.setItem("vault_current_user", username);
+          showMsg("Login successful! Opening your vault...", "ok");
+          setTimeout(() => location.href = "dashboard.html", 500);
+        }
+      }, 700);
+    };
   </script>
 </body>
 </html>
